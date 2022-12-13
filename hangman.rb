@@ -1,180 +1,73 @@
-words = [
-'undergarment',
-'Czech',
-'anywise',
-'vibraphonist',
-'congress',
-'pause',
-'nailer',
-'winglike',
-'hyaena',
-'width',
-'overprecise',
-'salad',
-'thermostatically',
-'Dunbar',
-'coupler',
-'appreciator',
-'indivisible',
-'splenetic',
-'Stein',
-'casting',
-'detachable',
-'sobering',
-'Madeiran',
-'foundational',
-'homewards',
-'epidemiology',
-'sawn',
-'kaput',
-'disheartenment',
-'ecclesial',
-'bellhop',
-'confetti',
-'keyboard',
-'capacitative',
-'Chelyabinsk',
-'pestilential',
-'Rossetti',
-'Qom',
-'Pavlovian',
-'confluent',
-'proleptic',
-'ecclesiastic',
-'unrenewed',
-'nomad',
-'mediocrity',
-'chichi',
-'paintbox',
-'vocationally',
-'volution',
-'Jinan',
-'boundary',
-'cumbersomeness',
-'epistemologist',
-'Orel',
-'Michigander',
-'pretence',
-'transnational',
-'fidgety',
-'comport',
-'citrate',
-'nonexperimental',
-'dispassion',
-'firedog',
-'ballistic',
-'graphitic',
-'irresponsibility',
-'rattling',
-'centripetal',
-'conjunctly',
-'Government',
-'extinct',
-'tears',
-'paramount',
-'divisibility',
-'irrecoverably',
-'concavity',
-'heterotrophic',
-'boardinghouse',
-'chidingly',
-'grandioseness',
-'motherliness',
-'directorate',
-'Namibian',
-'subzero',
-'suer',
-'camellia',
-'mileage',
-'rink',
-'inelastic',
-'Quechua',
-'Troja',
-'amputator',
-'verism',
-'detrimentally',
-'bottleful',
-'foolproof',
-'professionally',
-'somebody',
-'itchy',
-'tastelessness']
+# frozen_string_literal: true
 
-require('json')
+require 'msgpack'
+require 'yaml'
 
-###
-word = words.sample.downcase
-wordog = word + '!'
-leng = word.length
+# Implementation of the hangman game in ruby
+class Hangman
+    TRIES = 21
+    attr_accessor :word, :used_characters, :tries
 
-xword = ''
+    def initialize(word, used_characters: [], tries: TRIES)
+        @word = word
+        @used_characters = used_characters
+        @tries = tries
+    end
 
-leng.times {|i| xword+='_'}
+    def play
+        tries.downto 1 do |try|
+            char = ask(try) while used_characters.include?(char)
+            used_characters << char
 
-xword += "(#{leng})"
+            break if won
 
-###
-won = false
-letters_used = ''
-tries = 20
-new={}
-
-puts 'Do you want to load a game?'
-wload = gets.chomp
-if wload == 'yes' or wload == 'load'
-    file = File.open('JSON/savedHangman.json', 'r')
-    obj = file.read
-    file.close
-    obj2 = JSON.load obj
-    word = obj2['word']
-    xword = obj2['xword']
-    letters_used = obj2['letters_used']
-    tries = obj2['tries'] + 1
-    wordog = obj2['og']
-    puts 'Game loaded!'
-end
-
-tries.times do
-    unless won
-        puts "You have #{tries} tries"
-        tries -= 1
-        puts xword
-        puts "Write only one letter"
-        letter = gets.chomp
-        if letter == 'save'
-            file = File.open('JSON/savedHangman.json', 'w')
-            info = {
-                'word'=>word,
-                'xword'=>xword,
-                'letters_used'=>letters_used,
-                'tries'=>tries,
-                'og'=>wordog
-            }
-            file.puts info.to_json
-            file.close
-            puts 'Game saved!'
-            won = true
-        elsif letter != nil && letter.length == 1
-            until !word.include? letter
-                xword[word.index(letter)] = letter
-                word[word.index(letter)] = '_'
-                unless xword.include? '_'
-                    puts "Congratulations!! You have won. The word was #{xword}"
-                    won = true
-                    file = File.open('JSON/savedHangman.json', 'w')
-                    file.puts new
-                    file.close
-                end
-            end 
-            letters_used += letter + ' '
+            save(try)
         end
-        puts 'Letters you have used: ' + letters_used
+
+        if won
+            puts "Congratulations!! You have won. The word was #{word}"
+        else
+            puts "You have lost, the word was #{word}"
+        end
+
+        clear_save
+    end
+
+    def self.load
+        data = File.open('save', 'r') { |file| MessagePack.unpack file.read }
+        return unless data
+
+        Hangman.new(data[0], used_characters: data[1], tries: data[2])
+    rescue StandardError
+        nil
+    end
+
+    private
+
+    def ask(try)
+        puts "Letters you have used: #{used_characters.join(' ')}"
+        puts "You have #{try} tries", hidden_word
+        gets.chomp.downcase[0]
+    end
+
+    def hidden_word
+        word.split('').map { |char| used_characters.include?(char) ? char : '_' }.join ''
+    end
+
+    def won
+        !hidden_word.include? '_'
+    end
+
+    def save(try)
+        File.open('save', 'w') { |f| f.print MessagePack.dump([word, used_characters, try - 1]) }
+    end
+
+    def clear_save
+        File.open('save', 'w') { |f| f.print '' }
     end
 end
 
-if !won
-    puts "You have lost, the word was #{wordog}"
-    file = File.open('JSON/savedHangman.json', 'w')
-    file.puts new
-    file.close
-end
+word = File.open('words.yaml', 'r') { |f| YAML.safe_load(f.read).sample }
+
+hangman = Hangman.load || Hangman.new(word)
+hangman.play
